@@ -30,6 +30,10 @@ public struct SwitchTabsBar: View {
     public var indicatorHeight: CGFloat
     public var indicatorOffsetY: CGFloat
     
+    // 左侧插槽（按索引与选中态）与点击回调
+    public var leadingBuilder: (Int) -> AnyView
+    public var onLeadingTap: (Int) -> Void
+    
     /// SwiftUI 风格的最小化初始化：只关心数据与状态绑定，其余通过点语法配置
     public init(
         titles: [String],
@@ -46,6 +50,9 @@ public struct SwitchTabsBar: View {
         self.horizontalPadding = 0
         self.indicatorHeight = 3
         self.indicatorOffsetY = 9
+        // 插槽与回调默认空实现
+        self.leadingBuilder = { _ in AnyView(EmptyView()) }
+        self.onLeadingTap = { _ in }
     }
     
     // MARK: - Fluent Modifiers (SwiftUI-style)
@@ -93,18 +100,37 @@ public struct SwitchTabsBar: View {
         return v
     }
     
+    /// 提供“标题左侧”的可自定义视图（按索引与选中态）
+    public func leading(@ViewBuilder _ builder: @escaping (Int) -> some View) -> Self {
+        var v = self
+        v.leadingBuilder = { idx in AnyView(builder(idx)) }
+        return v
+    }
+    
+    /// 左侧按钮点击回调
+    public func onLeadingTap(_ action: @escaping (Int) -> Void) -> Self {
+        var v = self
+        v.onLeadingTap = action
+        return v
+    }
+    
     public var body: some View {
         HStack(spacing: spacing) {
             
             ForEach(titles.indices, id: \.self) { idx in
                 let isSelected = (idx == selection)
-                Button {
-                    selection = idx
-                } label: {
+                HStack {
+                    // 左侧插槽：独立可点，不影响主区域切换
+                    Button { onLeadingTap(idx) } label: {
+                        leadingBuilder(idx)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // 主标题区域：控制 selection
                     Text(titles[idx])
                         .font(font)
                         .foregroundStyle(isSelected ? accentColor : inactiveColor)
-                        // 关键：使用 overlay 让胶囊宽度 = 文本宽度
                         .overlay(alignment: .bottom) {
                             Capsule()
                                 .fill(isSelected ? accentColor : .clear)
@@ -112,11 +138,12 @@ public struct SwitchTabsBar: View {
                                 .offset(y: indicatorOffsetY)
                                 .padding(.horizontal, 5)
                         }
-                        .padding(.vertical, verticalPadding)
-                        .padding(.horizontal, horizontalPadding)
-                        .contentShape(Rectangle()) // 扩大可点击区域
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, verticalPadding)
+                .padding(.horizontal, horizontalPadding)
+                .contentShape(Rectangle())
+                .onTapGesture { selection = idx }
             }
             
         }
@@ -129,12 +156,28 @@ public struct SwitchTabsBar: View {
 struct SwitchTabsBar_Previews: PreviewProvider {
     struct Demo: View {
         @State private var selection = 0
+        @State private var eyeOn = true
+        @State private var eyeOnR = true
+
         var body: some View {
             VStack {
                 SwitchTabsBar(
                     titles: ["我的船队", "服务船队"],
                     selection: $selection
                 )
+                .leading { idx in
+                    if idx == 0 {
+                        Image(systemName: eyeOn ? "eye" : "eye.slash")
+                            .imageScale(.small)
+                    } else {
+                        Image(systemName: eyeOnR ? "eye" : "eye.slash")
+                            .imageScale(.small)
+                    }
+                }
+                .onLeadingTap { idx in
+                    if idx == 0 { eyeOn.toggle() }
+                    if idx == 1 { eyeOnR.toggle() }
+                }
                 
                 Text("当前选择：\(selection)")
                     .foregroundStyle(.secondary)
@@ -148,5 +191,3 @@ struct SwitchTabsBar_Previews: PreviewProvider {
     }
 }
 #endif
-
-
